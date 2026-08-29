@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { WorkOrder, WorkOrderStatus, Page, DashboardSummary } from '../types';
+import type { WorkOrder, WorkOrderStatus, Page, DashboardSummary, User } from '../types';
 
 export interface WorkOrderFilters {
   status?: WorkOrderStatus;
@@ -65,5 +65,11 @@ export async function logTime(id: string, minutes: number, note?: string): Promi
 // GET /api/reports/summary — dashboard metrics for managers.
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   const { data } = await api.get<DashboardSummary>('/reports/summary');
+  return data;
+}
+
+// GET /api/users/technicians — backs the assign-to-technician picker (dispatcher/manager only).
+export async function listTechnicians(): Promise<User[]> {
+  const { data } = await api.get<User[]>('/users/technicians');
   return data;
 }

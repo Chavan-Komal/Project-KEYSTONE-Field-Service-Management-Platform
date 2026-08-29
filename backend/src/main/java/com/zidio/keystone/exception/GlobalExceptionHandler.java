@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -58,6 +59,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
             .body(ApiError.of(401, "Unauthorized", "Invalid email or password."));
+    }
+
+    // A malformed request body — most commonly a non-UUID string sent where an
+    // ID field is expected (e.g. a site/customer name typed into a raw ID
+    // input). This is a client mistake, not a server fault: 400, not 500.
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        return ResponseEntity.badRequest()
+            .body(ApiError.of(400, "Bad Request", "The request body is malformed — check that ID fields contain a valid ID, not a name."));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -152,7 +152,7 @@ public class WorkOrderService {
         wo = workOrderRepository.save(wo);
         recordHistory(wo, null, WorkOrderStatus.NEW, actor, "Raised");
 
-        return WorkOrderResponse.detailed(wo, computeSlaState(wo), List.of(), List.of(), List.of());
+        return getWorkOrder(wo.getId());
     }
 
     // ---------------------------------------------------------------
@@ -193,7 +193,7 @@ public class WorkOrderService {
             recordHistory(wo, previousStatus, previousStatus, actor, "Reassigned to " + technician.getName());
         }
 
-        return WorkOrderResponse.detailed(wo, computeSlaState(wo), List.of(), List.of(), List.of());
+        return getWorkOrder(wo.getId());
     }
 
     // ---------------------------------------------------------------
@@ -222,7 +222,7 @@ public class WorkOrderService {
         wo = workOrderRepository.save(wo);
         recordHistory(wo, current, target, actor, request.note());
 
-        return WorkOrderResponse.detailed(wo, computeSlaState(wo), List.of(), List.of(), List.of());
+        return getWorkOrder(wo.getId());
     }
 
     private void assertRoleCanPerformTransition(

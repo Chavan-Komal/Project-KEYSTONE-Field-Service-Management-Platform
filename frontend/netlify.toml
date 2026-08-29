@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Client-side routing (react-router) — any deep link (e.g. /board, /work-orders/123)
+# must still serve index.html so the SPA's own router can take over.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

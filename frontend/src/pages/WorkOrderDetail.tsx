@@ -5,9 +5,10 @@ import {
   transitionStatus,
   logTime,
   logPartUsage,
-  assignWorkOrder
+  assignWorkOrder,
+  listTechnicians
 } from '../api/workOrders';
-import type { WorkOrder, WorkOrderStatus } from '../types';
+import type { WorkOrder, WorkOrderStatus, User } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { PriorityChip } from '../components/PriorityChip';
 import { SlaDot } from '../components/SlaDot';
@@ -16,8 +17,11 @@ import { useAuth } from '../context/AuthContext';
 // Mirrors the guarded transition diagram in Section 07 of the brief.
 // The server is the real source of truth (409 on illegal jumps) — this
 // just avoids offering buttons that would obviously be rejected.
+// ASSIGNED is reached only through the dedicated "Assign to technician"
+// flow below, never as a generic status-move button — picking a technician
+// is part of what "assigned" means (F4), not just a status flip.
 const ALLOWED_NEXT: Record<WorkOrderStatus, WorkOrderStatus[]> = {
-  NEW: ['ASSIGNED', 'CANCELLED'],
+  NEW: ['CANCELLED'],
   ASSIGNED: ['IN_PROGRESS', 'CANCELLED'],
   IN_PROGRESS: ['ON_HOLD', 'COMPLETED'],
   ON_HOLD: ['IN_PROGRESS'],
@@ -36,6 +40,10 @@ export function WorkOrderDetail() {
   const [error, setError] = useState<string | null>(null);
   const [minutes, setMinutes] = useState('');
   const [note, setNote] = useState('');
+  const [technicians, setTechnicians] = useState<User[]>([]);
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState('');
+
+  const canAssign = user?.role === 'DISPATCHER' || user?.role === 'MANAGER';
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -52,6 +60,11 @@ export function WorkOrderDetail() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!canAssign) return;
+    listTechnicians().then(setTechnicians);
+  }, [canAssign]);
+
   async function handleTransition(status: WorkOrderStatus) {
     if (!wo) return;
     setBusy(true);
@@ -63,6 +76,21 @@ export function WorkOrderDetail() {
     } catch (err: any) {
       // 409 = illegal transition rejected by the service-layer state machine.
       setError(err?.response?.data?.message ?? 'That transition was rejected by the server.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAssign() {
+    if (!wo || !selectedTechnicianId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await assignWorkOrder(wo.id, selectedTechnicianId);
+      setWo(updated);
+      setSelectedTechnicianId('');
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Could not assign that technician.');
     } finally {
       setBusy(false);
     }
@@ -132,6 +160,35 @@ export function WorkOrderDetail() {
               </div>
             </div>
           </div>
+
+          {canAssign && wo.status !== 'CLOSED' && wo.status !== 'CANCELLED' && (
+            <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+              <h3 style={{ fontSize: 13, marginBottom: 8 }}>
+                {wo.assignedToName ? 'Reassign technician' : 'Assign to technician'}
+              </h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select
+                  value={selectedTechnicianId}
+                  onChange={(e) => setSelectedTechnicianId(e.target.value)}
+                  style={{ flex: 1, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, fontSize: 12.5 }}
+                >
+                  <option value="">Select a technician…</option>
+                  {technicians.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={busy || !selectedTechnicianId}
+                  onClick={handleAssign}
+                >
+                  {wo.assignedToName ? 'Reassign' : 'Assign'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {canTransition && ALLOWED_NEXT[wo.status].length > 0 && (
             <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
