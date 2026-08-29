@@ -1,7 +1,7 @@
-# KEYSTONE — Backend (Spring Boot + MySQL)
+# KEYSTONE — Backend (Spring Boot + PostgreSQL)
 
 Field Service Management Platform backend for Project KEYSTONE. Spring Boot 3
-(Java 21), **MySQL**, Flyway-managed schema, stateless JWT auth, and the
+(Java 21), **PostgreSQL**, Flyway-managed schema, stateless JWT auth, and the
 governed work-order lifecycle described in the engineering brief.
 
 > **Note on how this was built:** this code was written and reviewed carefully
@@ -18,8 +18,8 @@ governed work-order lifecycle described in the engineering brief.
 | Language | Java 21 |
 | Framework | Spring Boot 3.3 (Web, Validation, Security) |
 | Persistence | Spring Data JPA / Hibernate |
-| Database | **MySQL 8.0.16+** (needed for `CHECK` constraint enforcement) |
-| Migrations | Flyway (`flyway-mysql` module) |
+| Database | **PostgreSQL 13+** |
+| Migrations | Flyway (`flyway-database-postgresql` module) |
 | Auth | Spring Security + JWT (jjwt) |
 | API docs | springdoc-openapi (Swagger UI) |
 | Boilerplate | Lombok |
@@ -30,24 +30,23 @@ governed work-order lifecycle described in the engineering brief.
 - **Eclipse IDE for Enterprise Java and Web Developers** (this bundle includes
   the Maven (m2e) and Java EE tooling you need — plain "Eclipse IDE for Java
   Developers" also works but may need the m2e plugin added manually)
-- **MySQL 8** running locally, or Docker to run it in a container
+- **PostgreSQL 13+** running locally, or Docker to run it in a container
 - **Lombok** — see step 3, this needs a one-time install into Eclipse itself
 
-## 2. Set up MySQL
+## 2. Set up PostgreSQL
 
 **Option A — Docker (easiest):**
 ```bash
 docker compose up -d
 ```
-This starts MySQL on `localhost:3306` with database `keystone`, user
+This starts PostgreSQL on `localhost:5432` with database `keystone`, user
 `keystone`, password `keystone` (see `docker-compose.yml`).
 
-**Option B — local MySQL install:**
+**Option B — local PostgreSQL install:**
 ```sql
-CREATE DATABASE keystone CHARACTER SET utf8mb4;
-CREATE USER 'keystone'@'localhost' IDENTIFIED BY 'keystone';
-GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost';
-FLUSH PRIVILEGES;
+CREATE DATABASE keystone;
+CREATE USER keystone WITH PASSWORD 'keystone';
+GRANT ALL PRIVILEGES ON DATABASE keystone TO keystone;
 ```
 
 ## 3. Install the Lombok plugin into Eclipse (one-time, important)
@@ -130,7 +129,7 @@ Raw OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DB_URL` | `jdbc:mysql://localhost:3306/keystone?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC` | JDBC URL |
+| `DB_URL` | `jdbc:postgresql://localhost:5432/keystone` | JDBC URL |
 | `DB_USERNAME` | `keystone` | DB user |
 | `DB_PASSWORD` | `keystone` | DB password |
 | `JWT_SECRET` | (dev default in `application.yml`) | Base64, 256-bit+. **Change this for anything beyond local dev.** Generate with `openssl rand -base64 32` |
@@ -151,8 +150,7 @@ Never commit real secrets — `.gitignore` already excludes `.env`.
 | Red squiggles on every `@Getter`/`@Builder` usage | Lombok isn't installed into Eclipse — see step 3 |
 | "Project has no default constructor" or similar Lombok-related errors persist after install | Restart Eclipse fully (not just close/reopen the workspace) |
 | Maven dependencies not resolving / red X on the project | Right-click project → **Maven → Update Project...**, tick "Force Update of Snapshots/Releases" |
-| `Access denied for user 'keystone'@'localhost'` | Confirm MySQL is running and the user/password/grants from step 2 were applied — check with `mysql -u keystone -p keystone` |
-| `Public Key Retrieval is not allowed` | Already handled by `allowPublicKeyRetrieval=true` in the JDBC URL above — if you changed the URL, keep that flag |
+| `password authentication failed for user "keystone"` | Confirm PostgreSQL is running and the user/password/grants from step 2 were applied — check with `psql -U keystone -d keystone -h localhost` |
 | Flyway checksum mismatch on a later run | You edited an already-applied migration file — don't; add a new `V3__...sql` instead, or wipe the dev DB and restart |
 
 ## 10. How the pieces map to the brief

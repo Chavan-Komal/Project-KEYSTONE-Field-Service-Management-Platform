@@ -1,19 +1,18 @@
 version: "3.8"
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: keystone-mysql
+  postgres:
+    image: postgres:16
+    container_name: keystone-postgres
     environment:
-      MYSQL_DATABASE: keystone
-      MYSQL_USER: keystone
-      MYSQL_PASSWORD: keystone
-      MYSQL_ROOT_PASSWORD: rootpassword
+      POSTGRES_DB: keystone
+      POSTGRES_USER: keystone
+      POSTGRES_PASSWORD: keystone
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - keystone-data:/var/lib/mysql
+      - keystone-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      test: ["CMD-SHELL", "pg_isready -U keystone -d keystone"]
       interval: 5s
       timeout: 5s
       retries: 10
