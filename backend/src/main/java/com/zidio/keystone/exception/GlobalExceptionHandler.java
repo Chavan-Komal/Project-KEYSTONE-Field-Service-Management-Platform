@@ -7,9 +7,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.List;
 
@@ -68,6 +70,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest()
             .body(ApiError.of(400, "Bad Request", "The request body is malformed — check that ID fields contain a valid ID, not a name."));
+    }
+
+    // Wrong HTTP verb for the route (e.g. GET on a POST-only endpoint) — a
+    // routing mismatch, not a server fault: 405, not 500.
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiError> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+            .body(ApiError.of(405, "Method Not Allowed", ex.getMessage()));
+    }
+
+    // No route matches this path at all — genuinely missing, not broken: 404.
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity<ApiError> handleNoHandlerFound(NoHandlerFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ApiError.of(404, "Not Found", "No such endpoint."));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
