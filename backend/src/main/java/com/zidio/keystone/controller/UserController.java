@@ -34,7 +34,12 @@ public class UserController {
         return userService.createTechnician(request);
     }
 
-    @PatchMapping("/technicians/{id}/base")
+    // POST, not PATCH: Render's edge (Cloudflare) drops PATCH requests to this
+    // service before they reach the app, even though every other verb works
+    // fine on the same path shape — confirmed by testing directly against the
+    // deployed backend. POST sidesteps it rather than fighting infra we don't
+    // control.
+    @PostMapping("/technicians/{id}/base")
     public TechnicianDto updateTechnicianBase(@PathVariable UUID id, @Valid @RequestBody UpdateTechnicianBaseRequest request) {
         return userService.updateTechnicianBase(id, request);
     }

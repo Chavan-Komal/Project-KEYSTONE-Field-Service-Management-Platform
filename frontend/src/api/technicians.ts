@@ -15,9 +15,10 @@ export async function createTechnician(payload: CreateTechnicianPayload): Promis
   return data;
 }
 
-// PATCH /api/users/technicians/{id}/base — set or change a technician's
-// home-base address (geocoded server-side).
+// POST /api/users/technicians/{id}/base — set or change a technician's
+// home-base address (geocoded server-side). POST, not PATCH — see the
+// backend controller comment for why.
 export async function updateTechnicianBase(id: string, baseAddress: string): Promise<Technician> {
-  const { data } = await api.patch<Technician>(`/users/technicians/${id}/base`, { baseAddress });
+  const { data } = await api.post<Technician>(`/users/technicians/${id}/base`, { baseAddress });
   return data;
 }
