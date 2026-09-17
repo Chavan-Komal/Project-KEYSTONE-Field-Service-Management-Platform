@@ -39,6 +39,12 @@ public class CustomerController {
         return customerService.listSitesForCustomer(id);
     }
 
+    // Customer's own sites, resolved server-side from the JWT — no ID needed.
+    @GetMapping("/me/sites")
+    public List<SiteDto> mySites() {
+        return customerService.listMySites();
+    }
+
     @PostMapping("/{id}/sites")
     @ResponseStatus(HttpStatus.CREATED)
     public SiteDto createSite(@PathVariable UUID id, @Valid @RequestBody CreateSiteRequest request) {

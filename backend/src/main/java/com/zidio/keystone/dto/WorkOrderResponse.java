@@ -33,7 +33,8 @@ public record WorkOrderResponse(
     Instant createdAt,
     List<StatusHistoryDto> history,
     List<PartUsageDto> parts,
-    List<TimeLogDto> timeLogs
+    List<TimeLogDto> timeLogs,
+    List<AttachmentDto> attachments
 ) {
 
     public static WorkOrderResponse summary(WorkOrder wo, SlaState slaState) {
@@ -55,6 +56,7 @@ public record WorkOrderResponse(
             wo.getCreatedAt(),
             null,
             null,
+            null,
             null
         );
     }
@@ -64,7 +66,8 @@ public record WorkOrderResponse(
         SlaState slaState,
         List<StatusHistoryDto> history,
         List<PartUsageDto> parts,
-        List<TimeLogDto> timeLogs
+        List<TimeLogDto> timeLogs,
+        List<AttachmentDto> attachments
     ) {
         return new WorkOrderResponse(
             wo.getId(),
@@ -84,7 +87,8 @@ public record WorkOrderResponse(
             wo.getCreatedAt(),
             history,
             parts,
-            timeLogs
+            timeLogs,
+            attachments
         );
     }
 }

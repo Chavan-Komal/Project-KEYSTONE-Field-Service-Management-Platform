@@ -31,6 +31,18 @@ public class User {
     @JoinColumn(name = "customer_id")
     private Customer customer;
 
+    // Only meaningful for TECHNICIAN-role users — a manager-set home-base
+    // address, geocoded (best-effort) for nearest-technician dispatch
+    // suggestions and the tracking map. Null until a manager sets one.
+    @Column(name = "base_address", length = 300)
+    private String baseAddress;
+
+    @Column(name = "base_latitude")
+    private Double baseLatitude;
+
+    @Column(name = "base_longitude")
+    private Double baseLongitude;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -60,6 +72,15 @@ public class User {
     public Customer getCustomer() { return customer; }
     public void setCustomer(Customer customer) { this.customer = customer; }
 
+    public String getBaseAddress() { return baseAddress; }
+    public void setBaseAddress(String baseAddress) { this.baseAddress = baseAddress; }
+
+    public Double getBaseLatitude() { return baseLatitude; }
+    public void setBaseLatitude(Double baseLatitude) { this.baseLatitude = baseLatitude; }
+
+    public Double getBaseLongitude() { return baseLongitude; }
+    public void setBaseLongitude(Double baseLongitude) { this.baseLongitude = baseLongitude; }
+
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
@@ -72,6 +93,9 @@ public class User {
         public Builder passwordHash(String passwordHash) { u.passwordHash = passwordHash; return this; }
         public Builder role(Role role) { u.role = role; return this; }
         public Builder customer(Customer customer) { u.customer = customer; return this; }
+        public Builder baseAddress(String baseAddress) { u.baseAddress = baseAddress; return this; }
+        public Builder baseLatitude(Double baseLatitude) { u.baseLatitude = baseLatitude; return this; }
+        public Builder baseLongitude(Double baseLongitude) { u.baseLongitude = baseLongitude; return this; }
         public User build() { return u; }
     }
 }

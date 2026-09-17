@@ -4,8 +4,8 @@ import com.zidio.keystone.domain.Site;
 
 import java.util.UUID;
 
-public record SiteDto(UUID id, UUID customerId, String name, String address) {
+public record SiteDto(UUID id, UUID customerId, String name, String address, Double latitude, Double longitude) {
     public static SiteDto from(Site s) {
-        return new SiteDto(s.getId(), s.getCustomer().getId(), s.getName(), s.getAddress());
+        return new SiteDto(s.getId(), s.getCustomer().getId(), s.getName(), s.getAddress(), s.getLatitude(), s.getLongitude());
     }
 }

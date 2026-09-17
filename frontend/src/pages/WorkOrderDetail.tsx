@@ -6,12 +6,13 @@ import {
   logTime,
   logPartUsage,
   assignWorkOrder,
-  listTechnicians
+  nearestTechnicians
 } from '../api/workOrders';
-import type { WorkOrder, WorkOrderStatus, User } from '../types';
+import type { WorkOrder, WorkOrderStatus, Technician } from '../types';
 import { StatusBadge } from '../components/StatusBadge';
 import { PriorityChip } from '../components/PriorityChip';
 import { SlaDot } from '../components/SlaDot';
+import { AttachmentGallery } from '../components/AttachmentGallery';
 import { useAuth } from '../context/AuthContext';
 
 // Mirrors the guarded transition diagram in Section 07 of the brief.
@@ -40,7 +41,7 @@ export function WorkOrderDetail() {
   const [error, setError] = useState<string | null>(null);
   const [minutes, setMinutes] = useState('');
   const [note, setNote] = useState('');
-  const [technicians, setTechnicians] = useState<User[]>([]);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('');
 
   const canAssign = user?.role === 'DISPATCHER' || user?.role === 'MANAGER';
@@ -61,9 +62,11 @@ export function WorkOrderDetail() {
   }, [load]);
 
   useEffect(() => {
-    if (!canAssign) return;
-    listTechnicians().then(setTechnicians);
-  }, [canAssign]);
+    if (!canAssign || !id) return;
+    // Sorted by distance from each technician's base to this job's site —
+    // a dispatch aid, not a restriction (any technician can still be picked).
+    nearestTechnicians(id).then(setTechnicians);
+  }, [canAssign, id]);
 
   async function handleTransition(status: WorkOrderStatus) {
     if (!wo) return;
@@ -176,6 +179,7 @@ export function WorkOrderDetail() {
                   {technicians.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}
+                      {t.distanceKm != null ? ` — ${t.distanceKm.toFixed(1)} km away` : ''}
                     </option>
                   ))}
                 </select>
@@ -260,6 +264,13 @@ export function WorkOrderDetail() {
           </div>
         </div>
       </div>
+
+      <AttachmentGallery
+        workOrderId={wo.id}
+        attachments={wo.attachments ?? []}
+        canUpload={wo.status !== 'CLOSED' && wo.status !== 'CANCELLED'}
+        onUploaded={load}
+      />
     </>
   );
 }

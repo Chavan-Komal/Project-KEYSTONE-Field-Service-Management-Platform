@@ -30,6 +30,24 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+  servlet:
+    multipart:
+      # Work order photos. Service layer rejects >5 MB with a friendlier
+      # message; this is the hard ceiling the servlet enforces.
+      max-file-size: 6MB
+      max-request-size: 8MB
+
+  # Password-reset email is OFF by default: with no SMTP configured, EmailService
+  # just logs the reset link (and it's also returned in the forgot-password
+  # response while keystone.auth.expose-reset-token is true). To send real mail,
+  # set these env vars (Spring Boot relaxed binding picks them up automatically):
+  #   SPRING_MAIL_HOST=smtp.gmail.com
+  #   SPRING_MAIL_PORT=587
+  #   SPRING_MAIL_USERNAME=you@gmail.com
+  #   SPRING_MAIL_PASSWORD=<gmail app password>
+  #   SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true
+  #   SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true
+
 server:
   # Render's Docker services inject PORT and expect the app to bind to it;
   # SERVER_PORT stays as the fallback for every other environment.
@@ -43,6 +61,18 @@ keystone:
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:480}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  auth:
+    # Where the emailed reset link points (the frontend origin, no trailing slash).
+    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+    reset-token-ttl-minutes: ${RESET_TOKEN_TTL_MINUTES:30}
+    # When true, POST /api/auth/forgot-password also returns the reset URL in
+    # its response body — convenient for local dev / demos with no mail server.
+    # Set EXPOSE_RESET_TOKEN=false in production so the link only goes by email.
+    expose-reset-token: ${EXPOSE_RESET_TOKEN:true}
+  mail:
+    from: ${MAIL_FROM:no-reply@keystone.dev}
+  attachments:
+    max-bytes: ${ATTACHMENT_MAX_BYTES:5242880}
   sla:
     hours:
       critical: 4

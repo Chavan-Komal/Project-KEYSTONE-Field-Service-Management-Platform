@@ -11,6 +11,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.List;
@@ -49,6 +50,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleInsufficientStock(InsufficientStockException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
             .body(ApiError.of(409, "Conflict", ex.getMessage()));
+    }
+
+    // An uploaded photo that's empty, not an image, or over the size cap — a
+    // client mistake: 400, with a message the UI can show as-is.
+    @ExceptionHandler(InvalidAttachmentException.class)
+    public ResponseEntity<ApiError> handleInvalidAttachment(InvalidAttachmentException ex) {
+        return ResponseEntity.badRequest()
+            .body(ApiError.of(400, "Bad Request", ex.getMessage()));
+    }
+
+    // The multipart layer rejected the upload before it reached the service
+    // (over spring.servlet.multipart.max-file-size) — same 400 shape.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        return ResponseEntity.badRequest()
+            .body(ApiError.of(400, "Bad Request", "That file is too large — images must be under 5 MB."));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { WorkOrder, WorkOrderStatus, Page, DashboardSummary, User } from '../types';
+import type { WorkOrder, WorkOrderStatus, Page, DashboardSummary, Technician } from '../types';
 
 export interface WorkOrderFilters {
   status?: WorkOrderStatus;
@@ -68,8 +68,35 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   return data;
 }
 
-// GET /api/users/technicians — backs the assign-to-technician picker (dispatcher/manager only).
-export async function listTechnicians(): Promise<User[]> {
-  const { data } = await api.get<User[]>('/users/technicians');
+// GET /api/users/technicians — the full technician roster (dispatcher/manager only).
+export async function listTechnicians(): Promise<Technician[]> {
+  const { data } = await api.get<Technician[]>('/users/technicians');
   return data;
+}
+
+// GET /api/work-orders/{id}/nearest-technicians — technicians sorted by
+// distance from their base to this work order's site (dispatcher/manager only).
+export async function nearestTechnicians(workOrderId: string): Promise<Technician[]> {
+  const { data } = await api.get<Technician[]>(`/work-orders/${workOrderId}/nearest-technicians`);
+  return data;
+}
+
+// POST /api/work-orders/{id}/attachments — multipart image upload (≤5MB, images only).
+export async function uploadAttachment(workOrderId: string, file: File): Promise<WorkOrder> {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await api.post<WorkOrder>(`/work-orders/${workOrderId}/attachments`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return data;
+}
+
+// GET /api/work-orders/{id}/attachments/{attachmentId} — streams the image bytes.
+// Fetched as a blob (the JWT can't ride on a plain <img src>), caller wraps it
+// in URL.createObjectURL for display.
+export async function fetchAttachmentBlob(workOrderId: string, attachmentId: string): Promise<string> {
+  const { data } = await api.get(`/work-orders/${workOrderId}/attachments/${attachmentId}`, {
+    responseType: 'blob'
+  });
+  return URL.createObjectURL(data as Blob);
 }

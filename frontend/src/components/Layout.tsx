@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { SupportChatbot } from './SupportChatbot';
 import type { Role } from '../types';
 
 interface NavItem {
@@ -14,7 +15,9 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/my-jobs', label: 'My Jobs', roles: ['TECHNICIAN'] },
   { to: '/dashboard', label: 'Dashboard', roles: ['MANAGER'] },
   { to: '/portal', label: 'My Requests', roles: ['CUSTOMER'] },
-  { to: '/new-request', label: 'Raise a Request', roles: ['CUSTOMER', 'DISPATCHER', 'MANAGER'] }
+  { to: '/new-request', label: 'Raise a Request', roles: ['CUSTOMER', 'DISPATCHER', 'MANAGER'] },
+  { to: '/technicians', label: 'Technicians', roles: ['MANAGER'] },
+  { to: '/map', label: 'Track Map', roles: ['MANAGER', 'CUSTOMER'] }
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -61,6 +64,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="main">{children}</main>
+      <SupportChatbot />
     </div>
   );
 }

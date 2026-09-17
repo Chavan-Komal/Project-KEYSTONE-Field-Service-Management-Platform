@@ -3,10 +3,12 @@ package com.zidio.keystone.service;
 import com.zidio.keystone.domain.*;
 import com.zidio.keystone.dto.*;
 import com.zidio.keystone.exception.InsufficientStockException;
+import com.zidio.keystone.exception.InvalidAttachmentException;
 import com.zidio.keystone.exception.InvalidTransitionException;
 import com.zidio.keystone.exception.ResourceNotFoundException;
 import com.zidio.keystone.repository.*;
 import com.zidio.keystone.security.UserPrincipal;
+import com.zidio.keystone.util.GeoMath;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,9 +18,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -34,6 +39,7 @@ public class WorkOrderService {
     private final SiteRepository siteRepository;
     private final UserRepository userRepository;
     private final PartRepository partRepository;
+    private final WorkOrderAttachmentRepository attachmentRepository;
 
     public WorkOrderService(
         WorkOrderRepository workOrderRepository,
@@ -43,7 +49,8 @@ public class WorkOrderService {
         CustomerRepository customerRepository,
         SiteRepository siteRepository,
         UserRepository userRepository,
-        PartRepository partRepository
+        PartRepository partRepository,
+        WorkOrderAttachmentRepository attachmentRepository
     ) {
         this.workOrderRepository = workOrderRepository;
         this.historyRepository = historyRepository;
@@ -53,6 +60,7 @@ public class WorkOrderService {
         this.siteRepository = siteRepository;
         this.userRepository = userRepository;
         this.partRepository = partRepository;
+        this.attachmentRepository = attachmentRepository;
     }
 
     @Value("${keystone.sla.hours.critical}") private long slaCriticalHours;
@@ -60,6 +68,11 @@ public class WorkOrderService {
     @Value("${keystone.sla.hours.medium}") private long slaMediumHours;
     @Value("${keystone.sla.hours.low}") private long slaLowHours;
     @Value("${keystone.sla.at-risk-threshold-percent}") private int atRiskThresholdPercent;
+
+    // Per-file cap for work order photos (default 5 MB). The multipart layer
+    // enforces its own slightly higher ceiling (application.yml) — this check
+    // gives a friendlier message just below it.
+    @Value("${keystone.attachments.max-bytes:5242880}") private long attachmentMaxBytes;
 
     // ---------------------------------------------------------------
     // Reads
@@ -98,8 +111,10 @@ public class WorkOrderService {
             .stream().map(PartUsageDto::from).toList();
         List<TimeLogDto> timeLogs = timeLogRepository.findByWorkOrderId(id)
             .stream().map(TimeLogDto::from).toList();
+        List<AttachmentDto> attachments = attachmentRepository.findByWorkOrderIdOrderByUploadedAtAsc(id)
+            .stream().map(AttachmentDto::from).toList();
 
-        return WorkOrderResponse.detailed(wo, computeSlaState(wo), history, parts, timeLogs);
+        return WorkOrderResponse.detailed(wo, computeSlaState(wo), history, parts, timeLogs, attachments);
     }
 
     // ---------------------------------------------------------------
@@ -194,6 +209,31 @@ public class WorkOrderService {
         }
 
         return getWorkOrder(wo.getId());
+    }
+
+    // Technicians sorted by distance from their manager-set home base to
+    // this work order's site — a dispatch aid, not an assignment rule
+    // (F4/Section 03). Technicians with no base location, or a site with no
+    // coordinates, sort last rather than being excluded.
+    @PreAuthorize("hasAnyRole('DISPATCHER','MANAGER')")
+    @Transactional(readOnly = true)
+    public List<TechnicianDto> nearestTechnicians(UUID workOrderId) {
+        WorkOrder wo = workOrderRepository.findById(workOrderId)
+            .orElseThrow(() -> new ResourceNotFoundException("Work order not found: " + workOrderId));
+        Site site = wo.getSite();
+
+        return userRepository.findByRoleOrderByNameAsc(Role.TECHNICIAN).stream()
+            .map(t -> {
+                TechnicianDto dto = TechnicianDto.from(t);
+                if (site.getLatitude() != null && site.getLongitude() != null
+                    && t.getBaseLatitude() != null && t.getBaseLongitude() != null) {
+                    double km = GeoMath.haversineKm(site.getLatitude(), site.getLongitude(), t.getBaseLatitude(), t.getBaseLongitude());
+                    return dto.withDistanceKm(km);
+                }
+                return dto;
+            })
+            .sorted(Comparator.comparing(TechnicianDto::distanceKm, Comparator.nullsLast(Comparator.naturalOrder())))
+            .toList();
     }
 
     // ---------------------------------------------------------------
@@ -324,6 +364,79 @@ public class WorkOrderService {
         timeLogRepository.save(log);
 
         return getWorkOrder(workOrderId);
+    }
+
+    // ---------------------------------------------------------------
+    // Attachments — customer photos of the issue
+    // ---------------------------------------------------------------
+
+    /**
+     * Attach an image to a work order. Access is scoped exactly like a read:
+     * a customer can only attach to their own org's work orders, a technician
+     * only to jobs assigned to them, dispatchers/managers to any.
+     */
+    @PreAuthorize("isAuthenticated()")
+    @Transactional
+    public WorkOrderResponse addAttachment(UUID workOrderId, MultipartFile file) {
+        WorkOrder wo = loadAndCheckAccess(workOrderId);
+
+        if (file == null || file.isEmpty()) {
+            throw new InvalidAttachmentException("No file was uploaded.");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
+            throw new InvalidAttachmentException("Only image files can be attached (JPEG, PNG, etc.).");
+        }
+        if (file.getSize() > attachmentMaxBytes) {
+            throw new InvalidAttachmentException(
+                "That image is too large — attachments must be under " + (attachmentMaxBytes / (1024 * 1024)) + " MB.");
+        }
+
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException ex) {
+            throw new InvalidAttachmentException("The uploaded file could not be read. Try again.");
+        }
+
+        User actor = userRepository.findById(currentPrincipal().getId())
+            .orElseThrow(() -> new ResourceNotFoundException("Current user not found"));
+
+        String original = file.getOriginalFilename();
+        String safeName = (original == null || original.isBlank()) ? "photo" : original;
+        if (safeName.length() > 255) {
+            safeName = safeName.substring(safeName.length() - 255);
+        }
+
+        WorkOrderAttachment attachment = WorkOrderAttachment.builder()
+            .workOrder(wo)
+            .filename(safeName)
+            .contentType(contentType)
+            .sizeBytes(bytes.length)
+            .data(bytes)
+            .uploadedBy(actor)
+            .build();
+        attachmentRepository.save(attachment);
+
+        return getWorkOrder(workOrderId);
+    }
+
+    /**
+     * Fetch the raw bytes of one attachment, after verifying the caller may
+     * read its work order and that the attachment actually belongs to it.
+     */
+    @PreAuthorize("isAuthenticated()")
+    @Transactional(readOnly = true)
+    public WorkOrderAttachment getAttachment(UUID workOrderId, UUID attachmentId) {
+        loadAndCheckAccess(workOrderId);
+
+        WorkOrderAttachment attachment = attachmentRepository.findById(attachmentId)
+            .orElseThrow(() -> new ResourceNotFoundException("Attachment not found: " + attachmentId));
+
+        if (!attachment.getWorkOrder().getId().equals(workOrderId)) {
+            throw new ResourceNotFoundException("Attachment not found: " + attachmentId);
+        }
+        return attachment;
     }
 
     // ---------------------------------------------------------------

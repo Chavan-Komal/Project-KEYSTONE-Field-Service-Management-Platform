@@ -20,6 +20,16 @@ export interface User {
   role: Role;
 }
 
+export interface Technician {
+  id: string;
+  name: string;
+  email: string;
+  baseAddress?: string | null;
+  baseLatitude?: number | null;
+  baseLongitude?: number | null;
+  distanceKm?: number | null;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -31,6 +41,19 @@ export interface Site {
   customerId: string;
   name: string;
   address: string;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+export interface MapPin {
+  kind: 'TECHNICIAN' | 'SITE' | 'WORK_ORDER';
+  id: string;
+  label: string;
+  latitude: number;
+  longitude: number;
+  status?: WorkOrderStatus | null;
+  priority?: Priority | null;
+  assignedToName?: string | null;
 }
 
 export interface WorkOrderStatusHistoryEntry {
@@ -58,6 +81,14 @@ export interface TimeLogEntry {
   note?: string;
 }
 
+export interface Attachment {
+  id: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+}
+
 export interface WorkOrder {
   id: string;
   code: string;
@@ -77,6 +108,7 @@ export interface WorkOrder {
   history?: WorkOrderStatusHistoryEntry[];
   parts?: PartUsage[];
   timeLogs?: TimeLogEntry[];
+  attachments?: Attachment[];
 }
 
 export interface DashboardSummary {

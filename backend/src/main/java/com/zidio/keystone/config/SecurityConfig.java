@@ -90,7 +90,10 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
             	    .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-            	    .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
+            	    .requestMatchers(
+            	        "/api/auth/login", "/api/auth/register",
+            	        "/api/auth/forgot-password", "/api/auth/reset-password"
+            	    ).permitAll()
             	    .requestMatchers(
             	        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
             	    ).permitAll()
