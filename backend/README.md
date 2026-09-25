@@ -2,14 +2,10 @@
 
 Field Service Management Platform backend for Project KEYSTONE. Spring Boot 3
 (Java 21), **PostgreSQL**, Flyway-managed schema, stateless JWT auth, and the
-governed work-order lifecycle described in the engineering brief.
+governed work-order lifecycle described in the engineering brief — plus a set
+of features built beyond the original brief (see Section 10).
 
-> **Note on how this was built:** this code was written and reviewed carefully
-> but **could not be compiled inside this sandbox** — no network access to
-> Maven Central here, so `mvn`/Eclipse's Maven integration can't download
-> Spring Boot, JJWT, etc. in this environment. Import it into Eclipse (steps
-> below) and let Eclipse/Maven resolve dependencies on your machine — send me
-> any errors that come up and I'll fix them fast.
+Deployed and live: the backend runs on Render, the frontend on Netlify.
 
 ## Stack
 
@@ -19,19 +15,24 @@ governed work-order lifecycle described in the engineering brief.
 | Framework | Spring Boot 3.3 (Web, Validation, Security) |
 | Persistence | Spring Data JPA / Hibernate |
 | Database | **PostgreSQL 13+** |
-| Migrations | Flyway (`flyway-database-postgresql` module) |
-| Auth | Spring Security + JWT (jjwt) |
+| Migrations | Flyway (`flyway-database-postgresql` module) — `V1`–`V4` |
+| Auth | Spring Security + JWT (jjwt), stateless |
 | API docs | springdoc-openapi (Swagger UI) |
-| Boilerplate | Lombok |
+| Geocoding | OpenStreetMap Nominatim (free, no API key) |
+| Testing | JUnit 5 + Spring Boot Test, real integration tests against an embedded (native, no-Docker-required) Postgres |
+
+No Lombok — entities and DTOs use hand-written getters/setters and builders.
 
 ## 1. Prerequisites
 
 - **Java 21 JDK**
-- **Eclipse IDE for Enterprise Java and Web Developers** (this bundle includes
-  the Maven (m2e) and Java EE tooling you need — plain "Eclipse IDE for Java
-  Developers" also works but may need the m2e plugin added manually)
+- **Maven** (or use your IDE's bundled Maven integration — Eclipse's m2e works fine)
 - **PostgreSQL 13+** running locally, or Docker to run it in a container
-- **Lombok** — see step 3, this needs a one-time install into Eclipse itself
+- If Docker isn't available: `io.zonky.test:embedded-postgres` (already a test
+  dependency) can run a real, native Postgres binary with zero Docker — see
+  `MapAndTechnicianIntegrationTest` for how the test suite uses it. The same
+  trick works for local dev: `initdb` + `pg_ctl start -o "-p 5432"` against a
+  scratch data directory gets you a real local Postgres without Docker at all.
 
 ## 2. Set up PostgreSQL
 
@@ -49,58 +50,42 @@ CREATE USER keystone WITH PASSWORD 'keystone';
 GRANT ALL PRIVILEGES ON DATABASE keystone TO keystone;
 ```
 
-## 3. Install the Lombok plugin into Eclipse (one-time, important)
+## 3. Import the project into Eclipse (or any Maven-aware IDE)
 
-This project uses Lombok (`@Getter`, `@Setter`, `@Builder`, etc.) to keep the
-entities and DTOs compact. Eclipse doesn't understand these annotations out of
-the box — you'll get red errors on every entity until Lombok is installed
-**into Eclipse itself** (not just added as a Maven dependency, which it already
-is in `pom.xml`).
+1. Open Eclipse
+2. `File → Import...`
+3. Choose **Maven → Existing Maven Projects** → **Next**
+4. **Root Directory** → browse to the `backend` folder
+5. Eclipse detects `pom.xml` and shows the project checked in the list — click **Finish**
+6. Eclipse downloads all dependencies (Spring Boot, JJWT, Postgres driver,
+   Flyway, springdoc, etc.) — takes a few minutes on first import
+7. If you still see red errors afterward: right-click the project → **Maven →
+   Update Project...** (tick "Force Update")
 
-1. Download `lombok.jar` from https://projectlombok.org/download (or find it
-   already in your local Maven repo at
-   `~/.m2/repository/org/projectlombok/lombok/1.18.34/lombok-1.18.34.jar`
-   after the first Maven build attempt)
-2. Run it: `java -jar lombok.jar`
-3. It auto-detects your Eclipse installation — tick the box next to it and
-   click **Install / Update**
-4. **Restart Eclipse**
+## 4. Run it
 
-If Eclipse still shows errors on Lombok-generated methods afterward, go to
-`eclipse.ini` (in your Eclipse install folder) and confirm a line like
-`-javaagent:lombok.jar` was added near the top — the installer usually does
-this automatically.
+**From Eclipse:** expand `src/main/java` → `com.zidio.keystone` →
+`KeystoneApplication.java` → right-click → **Run As → Java Application** (or
+**Spring Boot App** if you have Spring Tools installed).
 
-## 4. Import the project into Eclipse
+**From the command line:**
+```bash
+mvn spring-boot:run
+```
 
-1. Unzip `keystone-backend.zip` somewhere on disk
-2. Open Eclipse
-3. `File → Import...`
-4. Choose **Maven → Existing Maven Projects** → **Next**
-5. **Root Directory** → Browse to the unzipped `keystone-backend` folder
-6. Eclipse will detect `pom.xml` and show the project checked in the list — click **Finish**
-7. Eclipse will now download all dependencies (Spring Boot, JJWT, MySQL
-   driver, etc.) — this can take a few minutes on first import. Watch the
-   bottom-right progress bar.
-8. Once it settles, right-click the project → **Maven → Update Project...**
-   (tick "Force Update") if you still see red errors
+On first boot, Flyway runs every migration in `src/main/resources/db/migration/`:
+- `V1__init_schema.sql` — creates all tables
+- `V2__seed_data.sql` — seeds 2 customers, 3 sites, 3 parts, 4 users (one per
+  role), 3 sample work orders in different lifecycle states
+- `V3__password_reset_and_attachments.sql` — password reset tokens, work
+  order photo attachments
+- `V4__technician_locations_and_geocoding.sql` — lat/lng on sites and a
+  technician home-base address, with seed backfill
 
-## 5. Run it from Eclipse
+Once you see `Started KeystoneApplication in X seconds`, the API is live at
+`http://localhost:8080`.
 
-1. In the **Project Explorer**, expand
-   `src/main/java` → `com.zidio.keystone` → `KeystoneApplication.java`
-2. Right-click it → **Run As → Java Application**
-   (or **Spring Boot App** if you have Spring Tools installed as an Eclipse
-   add-on — either works identically here)
-3. Watch the **Console** view — on first boot, Flyway runs the two migrations
-   in `src/main/resources/db/migration/`:
-   - `V1__init_schema.sql` — creates all tables
-   - `V2__seed_data.sql` — seeds 2 customers, 3 sites, 3 parts, 4 users (one
-     per role), and 3 sample work orders in different lifecycle states
-4. Once you see `Started KeystoneApplication in X seconds`, the API is live at
-   `http://localhost:8080`
-
-## 6. Seed logins
+## 5. Seed logins
 
 All seed users share the password **`Password123!`**
 
@@ -111,7 +96,6 @@ All seed users share the password **`Password123!`**
 | Manager | `manager@keystone.dev` |
 | Customer | `customer@keystone.dev` |
 
-Try it (from a terminal, or Postman, or Eclipse's built-in nothing-fancy — curl is simplest):
 ```bash
 curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
@@ -120,106 +104,115 @@ curl -X POST http://localhost:8080/api/auth/login \
 You'll get back `{ "token": "...", "user": {...} }`. Use the token as
 `Authorization: Bearer <token>` on every other request.
 
-## 7. API docs
+## 6. API docs
 
 Swagger UI: **http://localhost:8080/swagger-ui.html**
 Raw OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
-## 8. Environment variables (for anything beyond local dev)
+## 7. Environment variables (for anything beyond local dev)
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `DB_URL` | `jdbc:postgresql://localhost:5432/keystone` | JDBC URL |
 | `DB_USERNAME` | `keystone` | DB user |
 | `DB_PASSWORD` | `keystone` | DB password |
-| `JWT_SECRET` | (dev default in `application.yml`) | Base64, 256-bit+. **Change this for anything beyond local dev.** Generate with `openssl rand -base64 32` |
+| `JWT_SECRET` | (dev default in `application.yml`) | Base64, 256-bit+. **Change this for anything beyond local dev.** `openssl rand -base64 32` |
 | `JWT_EXPIRATION_MINUTES` | `480` | Token lifetime |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated origins allowed to call the API (set to your deployed frontend URL in production) |
-| `SERVER_PORT` | `8080` | — |
-
-To set these in Eclipse instead of via shell env vars: right-click
-`KeystoneApplication.java` → **Run As → Run Configurations... → Environment
-tab → Add** to set any of the above per-run.
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated origins allowed to call the API |
+| `SERVER_PORT` / `PORT` | `8080` | Render injects `PORT`; `SERVER_PORT` is the fallback everywhere else |
+| `FRONTEND_BASE_URL` | `http://localhost:5173` | Where the emailed password-reset link points |
+| `RESET_TOKEN_TTL_MINUTES` | `30` | Password-reset token lifetime |
+| `EXPOSE_RESET_TOKEN` | `true` | If true, `/api/auth/forgot-password` also returns the reset link in the response body — convenient for dev, **set to `false` in production** so the link only goes by email |
+| `SPRING_MAIL_HOST` / `_PORT` / `_USERNAME` / `_PASSWORD` | unset | Configure to send real password-reset emails; with none set, the link is just logged |
+| `ATTACHMENT_MAX_BYTES` | `5242880` (5MB) | Work order photo upload cap |
 
 Never commit real secrets — `.gitignore` already excludes `.env`.
 
-## 9. Common Eclipse troubleshooting
+## 8. Common troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| Red squiggles on every `@Getter`/`@Builder` usage | Lombok isn't installed into Eclipse — see step 3 |
-| "Project has no default constructor" or similar Lombok-related errors persist after install | Restart Eclipse fully (not just close/reopen the workspace) |
 | Maven dependencies not resolving / red X on the project | Right-click project → **Maven → Update Project...**, tick "Force Update of Snapshots/Releases" |
-| `password authentication failed for user "keystone"` | Confirm PostgreSQL is running and the user/password/grants from step 2 were applied — check with `psql -U keystone -d keystone -h localhost` |
-| Flyway checksum mismatch on a later run | You edited an already-applied migration file — don't; add a new `V3__...sql` instead, or wipe the dev DB and restart |
+| `password authentication failed for user "keystone"` | Confirm PostgreSQL is running and the user/password/grants from step 2 were applied |
+| Flyway checksum mismatch on a later run | You edited an already-applied migration file — don't; add a new `V5__...sql` instead, or wipe the dev DB and restart |
+| A `PATCH` request works locally but 404s once deployed | Render's edge (Cloudflare) has been observed dropping `PATCH` in production even when the identical route works for `POST` — this project avoids `PATCH` entirely for that reason (see `UserController.updateTechnicianBase`) |
+| Docker unavailable for local Postgres | Use the embedded-postgres approach from Section 1 — no Docker needed |
 
-## 10. How the pieces map to the brief
+## 9. How the pieces map to the brief
 
 ### The lifecycle (Section 07) — `WorkOrderStatus.java` + `WorkOrderService`
 `WorkOrderStatus.ALLOWED_TRANSITIONS` is the single source of truth for legal
 jumps. `WorkOrderService.transitionStatus()` checks it and throws
-`InvalidTransitionException` (→ HTTP 409) on anything illegal. Role
-restrictions per transition (e.g. "only a manager can CLOSE") live in
-`assertRoleCanPerformTransition()`. Every transition writes an append-only
-`WorkOrderStatusHistory` row.
+`InvalidTransitionException` (→ HTTP 409) on anything illegal. Every
+transition writes an append-only `WorkOrderStatusHistory` row.
 
 ### Security (Section 08) — `SecurityConfig`, `JwtService`, `JwtAuthenticationFilter`
 Stateless JWT, BCrypt passwords, `@PreAuthorize` on every service method (not
-just the controller — defense in depth). `WorkOrderService` additionally
-scopes every query and single-record fetch by role: a technician's list query
-is filtered to `assignedTo = me` **in the SQL**, not after the fact; a
-customer's queries are filtered to their own `customerId`. This is the actual
-security boundary — the frontend's route guards are UX only.
+just the controller — defense in depth). Every list/read query is scoped by
+role **in the SQL** via `WorkOrderSpecifications` — a technician's query has
+`assignedTo = me` baked into the `WHERE` clause, a customer's has their own
+`customerId`. That's the real security boundary; the frontend's route guards
+are UX only.
 
 ### Transactional integrity (Section 05/06) — `WorkOrderService.logPartUsage()`
 Stock check + decrement + usage-log insert all happen inside one
-`@Transactional` method, so a failure anywhere rolls back the whole thing.
-Stock is also protected at the DB level with a `CHECK (stock_qty >= 0)`
-constraint as a second line of defense.
+`@Transactional` method. Stock is also protected at the DB level with a
+`CHECK (stock_qty >= 0)` constraint as a second line of defense.
 
-### SLA tracking (F7) — `WorkOrderService.computeSlaState()` + `SlaMonitorScheduler`
-SLA due date is set at creation based on priority (configurable in
-`application.yml` under `keystone.sla.hours.*`). State (`OK` / `AT_RISK` /
-`BREACHED`) is computed on read, not stored, so it's always current.
-`SlaMonitorScheduler` runs every 5 minutes and logs breaches — swap the `TODO`
-for a real notification (email/in-app) when you're ready to wire one up.
+### SLA tracking (F7) — `WorkOrderService.computeSlaState()`
+SLA due date is set at creation based on priority (configurable under
+`keystone.sla.hours.*`). State (`OK` / `AT_RISK` / `BREACHED`) is computed on
+read, not stored, so it's always current.
 
 ### Dashboard (F8) — `ReportService` / `GET /api/reports/summary`
-Manager-only. Counts by status, overdue count, a compliance rate, and load by
-technician — shapes match the frontend's `DashboardSummary` type exactly.
+Manager-only. Counts by status, overdue count, a compliance rate, load by
+technician.
+
+## 10. Built beyond the original brief
+
+- **Self-service password reset** — `AuthController`/`AuthService`, token-based, `V3` migration
+- **Work order photo attachments** — multipart upload, image-only, size-capped, `V3` migration
+- **Manager-provisioned technician roster** — `UserService.createTechnician()`,
+  staff accounts are never self-registered (Section 03)
+- **Geocoding** — `GeocodingService` calls OpenStreetMap's free Nominatim API;
+  best-effort, never blocks a write if the external call fails
+- **Nearest-technician dispatch suggestion** — `WorkOrderService.nearestTechnicians()`,
+  haversine distance (`util/GeoMath`) from each technician's geocoded base to
+  the job's geocoded site
+- **Tracking map data** — `MapService`/`MapController`, org-wide for Manager,
+  own-sites-only for Customer
+- **Customer-scoped site picker** — `GET /api/customers/me/sites` resolves the
+  caller's own organisation from the JWT, replacing a staff-only endpoint that
+  used to accept any customer ID from any authenticated caller
 
 ## 11. Project structure
 
 ```
 src/main/java/com/zidio/keystone/
-  config/        SecurityConfig, OpenApiConfig
+  config/        SecurityConfig
   security/      JWT service/filter, UserDetails adapter
-  domain/        JPA entities + enums (Role, Priority, WorkOrderStatus, SlaState)
+  domain/        JPA entities + enums
   repository/    Spring Data JPA repositories
   dto/           Request/response records — entities never serialise directly
-  service/       Business logic, the state machine, RBAC checks
+  service/       Business logic, the state machine, RBAC checks, geocoding, map
   controller/    Thin REST controllers — no business logic
   exception/     Custom exceptions + a global handler for consistent error shapes
+  util/          GeoMath (haversine distance)
 src/main/resources/
   application.yml
-  db/migration/  Flyway scripts (V1 schema, V2 seed data)
-src/test/        WorkOrderStatusTest — lifecycle transition unit tests
+  db/migration/  Flyway scripts, V1 through V4
+src/test/        WorkOrderStatusTest (lifecycle unit tests),
+                 MapAndTechnicianIntegrationTest (real end-to-end HTTP tests
+                 against a real embedded Postgres — roster, nearest-tech,
+                 map endpoints, and role-based access denial)
 ```
 
-## 12. What's next / left as a starting point
+## 12. What's next
 
-- **More tests.** Section 16.1 flags the lifecycle and authorisation rules as
-  the highest-value things to cover. `WorkOrderStatusTest` covers the pure
-  state machine; add `@SpringBootTest` integration tests next for the
-  cross-customer/cross-technician access-denial cases (a customer hitting
-  another customer's work order by ID, a technician trying to close a job,
-  etc.) — those are exactly what a reviewer will try first.
-- **Notifications.** `SlaMonitorScheduler` logs breaches; wire in real email
-  or an in-app notifications table when ready.
-- **A dedicated `closed_at` column.** `ReportService` currently uses
-  `updated_at` as a proxy for "when a work order was closed" to compute SLA
-  compliance — accurate in practice (closing is usually the last write) but a
-  purpose-built column would be cleaner.
-- **User management endpoints.** Manager-only user/technician CRUD isn't
-  built yet — seed data covers the 4 demo logins; add `POST /api/users` etc.
-  when you need to onboard real users beyond the seed set.
+- **Live GPS tracking** for technicians in the field, instead of a static home-base address
+- **WebSocket/SSE push** for status changes, instead of client-side polling
+- **Dispatcher access to the tracking map** — currently Manager and Customer only
+- **Rate-limit/cache geocoding calls** ahead of any real Nominatim usage-policy limits
+- **A dedicated `closed_at` column** — `ReportService` currently uses `updated_at`
+  as a proxy for "when a work order was closed," accurate in practice but a
+  purpose-built column would be cleaner

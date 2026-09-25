@@ -23,7 +23,8 @@ function slaWindowText(priority: string): string {
   const hours = SLA_HOURS[priority];
   if (!hours) return '';
   if (hours < 24) return `${hours} hours`;
-  return hours === 168 ? '7 days' : `${hours / 24} days`;
+  const days = hours / 24;
+  return `${days} ${days === 1 ? 'day' : 'days'}`;
 }
 
 function describeWorkOrder(wo: WorkOrder): string {
@@ -43,7 +44,7 @@ const THANKS = /^\s*(thanks|thank you|thankyou|cheers|ty)\b/i;
 const CODE = /\bwo[\s-]?(\d{3,6})\b/i;
 const MY_REQUESTS = /\b(my|open|pending|active|current)\s+(requests?|tickets?|jobs?)\b|how many (requests?|tickets?|jobs?)/i;
 const RAISE = /\b(raise|submit|create|open|file|report|log)\b.*\b(request|ticket|issue|job|problem)\b|how do i (raise|submit|report)/i;
-const SLA = /\bsla\b|\bpriorit(y|ies)\b|how (fast|long|quick|soon)/i;
+const SLA = /\bslas?\b|\bpriorit(y|ies)\b|how (fast|long|quick|soon)/i;
 const LIFECYCLE = /what happens|next step|how (does|do) (it|this|the process) work|lifecycle|what.?s the process/i;
 const HUMAN = /\b(human|person|agent|someone|representative|call|phone)\b/i;
 
