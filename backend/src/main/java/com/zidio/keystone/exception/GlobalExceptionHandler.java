@@ -60,6 +60,14 @@ public class GlobalExceptionHandler {
             .body(ApiError.of(400, "Bad Request", ex.getMessage()));
     }
 
+    // Cloud storage is down or rejected us — the upstream failed, not the client.
+    @ExceptionHandler(com.zidio.keystone.storage.StorageException.class)
+    public ResponseEntity<ApiError> handleStorage(com.zidio.keystone.storage.StorageException ex) {
+        log.error("Cloud storage failure", ex);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+            .body(ApiError.of(502, "Bad Gateway", ex.getMessage()));
+    }
+
     // The multipart layer rejected the upload before it reached the service
     // (over spring.servlet.multipart.max-file-size) — same 400 shape.
     @ExceptionHandler(MaxUploadSizeExceededException.class)

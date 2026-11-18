@@ -100,6 +100,6 @@ public class WorkOrderController {
             .header(HttpHeaders.CONTENT_DISPOSITION,
                 ContentDisposition.inline().filename(attachment.getFilename()).build().toString())
             .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
-            .body(attachment.getData());
+            .body(workOrderService.readAttachmentBytes(attachment));
     }
 }

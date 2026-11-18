@@ -8,6 +8,7 @@ import com.zidio.keystone.exception.InvalidTransitionException;
 import com.zidio.keystone.exception.ResourceNotFoundException;
 import com.zidio.keystone.repository.*;
 import com.zidio.keystone.security.UserPrincipal;
+import com.zidio.keystone.storage.AttachmentStorage;
 import com.zidio.keystone.util.GeoMath;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -25,6 +26,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -40,6 +42,7 @@ public class WorkOrderService {
     private final UserRepository userRepository;
     private final PartRepository partRepository;
     private final WorkOrderAttachmentRepository attachmentRepository;
+    private final AttachmentStorage attachmentStorage;
 
     public WorkOrderService(
         WorkOrderRepository workOrderRepository,
@@ -50,7 +53,8 @@ public class WorkOrderService {
         SiteRepository siteRepository,
         UserRepository userRepository,
         PartRepository partRepository,
-        WorkOrderAttachmentRepository attachmentRepository
+        WorkOrderAttachmentRepository attachmentRepository,
+        AttachmentStorage attachmentStorage
     ) {
         this.workOrderRepository = workOrderRepository;
         this.historyRepository = historyRepository;
@@ -61,6 +65,7 @@ public class WorkOrderService {
         this.userRepository = userRepository;
         this.partRepository = partRepository;
         this.attachmentRepository = attachmentRepository;
+        this.attachmentStorage = attachmentStorage;
     }
 
     @Value("${keystone.sla.hours.critical}") private long slaCriticalHours;
@@ -408,17 +413,29 @@ public class WorkOrderService {
             safeName = safeName.substring(safeName.length() - 255);
         }
 
+        // Cloud storage returns an object key; database storage returns empty and
+        // the bytes stay inline on the row.
+        Optional<String> storageKey = attachmentStorage.store(workOrderId, bytes, contentType);
+
         WorkOrderAttachment attachment = WorkOrderAttachment.builder()
             .workOrder(wo)
             .filename(safeName)
             .contentType(contentType)
             .sizeBytes(bytes.length)
-            .data(bytes)
+            .data(storageKey.isPresent() ? null : bytes)
+            .storageKey(storageKey.orElse(null))
             .uploadedBy(actor)
             .build();
         attachmentRepository.save(attachment);
 
         return getWorkOrder(workOrderId);
+    }
+
+    /** The photo's bytes, from wherever it was stored. */
+    public byte[] readAttachmentBytes(WorkOrderAttachment attachment) {
+        return attachment.getStorageKey() != null
+            ? attachmentStorage.fetch(attachment.getStorageKey())
+            : attachment.getData();
     }
 
     /**

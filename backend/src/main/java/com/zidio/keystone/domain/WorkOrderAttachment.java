@@ -31,8 +31,13 @@ public class WorkOrderAttachment {
     @Column(name = "size_bytes", nullable = false)
     private long sizeBytes;
 
-    @Column(name = "data", nullable = false)
+    // Exactly one of data / storageKey is set: inline bytes for database
+    // storage, or the object key when the photo lives in cloud storage.
+    @Column(name = "data")
     private byte[] data;
+
+    @Column(name = "storage_key", length = 500)
+    private String storageKey;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "uploaded_by", nullable = false)
@@ -67,6 +72,9 @@ public class WorkOrderAttachment {
     public byte[] getData() { return data; }
     public void setData(byte[] data) { this.data = data; }
 
+    public String getStorageKey() { return storageKey; }
+    public void setStorageKey(String storageKey) { this.storageKey = storageKey; }
+
     public User getUploadedBy() { return uploadedBy; }
     public void setUploadedBy(User uploadedBy) { this.uploadedBy = uploadedBy; }
 
@@ -82,6 +90,7 @@ public class WorkOrderAttachment {
         public Builder contentType(String contentType) { a.contentType = contentType; return this; }
         public Builder sizeBytes(long sizeBytes) { a.sizeBytes = sizeBytes; return this; }
         public Builder data(byte[] data) { a.data = data; return this; }
+        public Builder storageKey(String storageKey) { a.storageKey = storageKey; return this; }
         public Builder uploadedBy(User uploadedBy) { a.uploadedBy = uploadedBy; return this; }
         public WorkOrderAttachment build() { return a; }
     }

@@ -121,6 +121,37 @@ class MapAndTechnicianIntegrationTest {
     }
 
     @Test
+    void customerCanUploadAPhotoAndReadTheSameBytesBack() {
+        String token = loginAs("customer@keystone.dev");
+        String woId = "c1111111-cccc-1111-cccc-111111111111"; // WO-1001, Meridian's own job
+        byte[] png = {(byte) 0x89, 'P', 'N', 'G', 1, 2, 3, 4, 5};
+
+        HttpHeaders partHeaders = new HttpHeaders();
+        partHeaders.setContentType(org.springframework.http.MediaType.IMAGE_PNG);
+        org.springframework.util.LinkedMultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
+        body.add("file", new HttpEntity<>(new org.springframework.core.io.ByteArrayResource(png) {
+            @Override public String getFilename() { return "leak.png"; }
+        }, partHeaders));
+
+        HttpHeaders headers = authHeaders(token);
+        headers.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
+        ResponseEntity<String> upload = rest.exchange(
+            baseUrl() + "/work-orders/" + woId + "/attachments", HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
+        assertEquals(HttpStatus.CREATED, upload.getStatusCode(), upload.getBody());
+
+        // the response is the work order; pull the new attachment's id out of it
+        java.util.regex.Matcher m = java.util.regex.Pattern
+            .compile("\"attachments\":\\[\\{\"id\":\"([0-9a-f-]{36})\"").matcher(upload.getBody());
+        assertTrue(m.find(), "attachment id not in response: " + upload.getBody());
+
+        ResponseEntity<byte[]> download = rest.exchange(
+            baseUrl() + "/work-orders/" + woId + "/attachments/" + m.group(1),
+            HttpMethod.GET, new HttpEntity<>(authHeaders(token)), byte[].class);
+        assertEquals(HttpStatus.OK, download.getStatusCode());
+        assertArrayEquals(png, download.getBody());
+    }
+
+    @Test
     void technicianCannotCreateTechniciansOrSeeManagerMap() {
         String token = loginAs("technician@keystone.dev");
 

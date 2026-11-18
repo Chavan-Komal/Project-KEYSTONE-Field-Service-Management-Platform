@@ -125,6 +125,12 @@ Raw OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 | `EXPOSE_RESET_TOKEN` | `true` | If true, `/api/auth/forgot-password` also returns the reset link in the response body — convenient for dev, **set to `false` in production** so the link only goes by email |
 | `SPRING_MAIL_HOST` / `_PORT` / `_USERNAME` / `_PASSWORD` | unset | Configure to send real password-reset emails; with none set, the link is just logged |
 | `ATTACHMENT_MAX_BYTES` | `5242880` (5MB) | Work order photo upload cap |
+| `STORAGE_TYPE` | `db` | Where work-order photos live: `db` (inline in Postgres) or `s3` (cloud object storage) |
+| `S3_BUCKET` | unset | Required when `STORAGE_TYPE=s3` — the app refuses to start without it |
+| `S3_REGION` | `us-east-1` | Bucket region |
+| `S3_ENDPOINT` | unset | Leave blank for AWS S3; set for Cloudflare R2, MinIO, Supabase Storage, etc. |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | unset | Static credentials; if blank, the standard AWS credential chain is used |
+| `S3_PATH_STYLE` | `false` | Set `true` for MinIO and most self-hosted S3-compatible stores |
 
 Never commit real secrets — `.gitignore` already excludes `.env`.
 
@@ -172,6 +178,11 @@ technician.
 
 - **Self-service password reset** — `AuthController`/`AuthService`, token-based, `V3` migration
 - **Work order photo attachments** — multipart upload, image-only, size-capped, `V3` migration
+- **Cloud photo storage** — `storage/AttachmentStorage` has two implementations,
+  picked by `STORAGE_TYPE`: database-inline (default) or any S3-compatible
+  cloud store (`S3AttachmentStorage`). Existing photos keep working after you
+  switch; each row records which backend holds it (`storage_key`, `V5`
+  migration). An unreachable bucket returns a clean 502 and saves no row.
 - **Manager-provisioned technician roster** — `UserService.createTechnician()`,
   staff accounts are never self-registered (Section 03)
 - **Geocoding** — `GeocodingService` calls OpenStreetMap's free Nominatim API;
